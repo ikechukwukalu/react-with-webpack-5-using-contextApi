@@ -3,8 +3,11 @@ MY REACT APP WITH WEBPACK 5
 •	``npm install -g create-react-app``
 ## Start a new React project
 •	``npx create-react-app project``
+## Add redux
+•	``npm i @reduxjs/toolkit redux react-redux``
+
 ## Add .babelrc
-•	``npm i -D @babel/core babel-loader @babel/preset-env @babel/preset-react @babel/plugin-proposal-class-properties``\
+•	``npm i -D regenerator-runtime @babel/core babel-loader @babel/preset-env @babel/preset-react @babel/plugin-proposal-class-properties``\
 •	Create a new ``.babelrc``\
 •	Add the following lines
 
@@ -68,7 +71,12 @@ module.exports = {
         open: true,
         compress: true,
         hot: true,
+        host: '0.0.0.0', // or 0.0.0.0
         port: 8080, // For production - You may need to change this to 80 
+        watchOptions: {
+            aggregateTimeout: 500, // delay before reloading
+            poll: 1000 // enable polling since fsevents are not supported in docker
+        }
     },
     module: {
         rules: [
@@ -189,8 +197,8 @@ import Scripts from './scripts/scripts';
   render() { 
     return (
       <Fragment>
-      <div></div>, 
-      <Scripts /> 
+        <div>HTML</div>
+        <Scripts /> 
       </Fragment>
     );
   }
@@ -230,24 +238,15 @@ export default withRouter(ScrollToTop);
 ```
 import React, { Component } from 'react';
 import { HashRouter as Router  } from "react-router-dom";
-import './App.css';
 import Components from './components/index.jsx';
 import ScrollToTop from './components/scripts/scroll.js';
 
 class App extends Component {
-  constructor() {
-      super();
-      this.state = {
-        base_url: window.location.pathname, // The base_url 
-        api_url: '' // Tha api url
-      }
-  }
-
   render() {
     return (
         <Router>
           <ScrollToTop>
-            <Components base_url={this.state.base_url} api_url={this.state.api_url} />
+            <Components />
           </ScrollToTop>
         </Router>
     );
@@ -280,3 +279,64 @@ RewriteCond %{REQUEST_URI} !=/favicon.ico
 RewriteRule ^ index.html [L]
 </IfModule>
 ```
+
+## DOCKERIZE YOUR REACT APP (LIVE RELOAD INCLUSIVE)
+•	Create a new ``Dockerfile`` and add the following lines
+
+```
+FROM node:14.17.0-alpine
+WORKDIR /app
+COPY . /app
+EXPOSE 8080
+RUN npm install
+CMD ["npm", "start"]
+```
+
+•	Create a new ``docker-compose.yml`` and add the following lines as well
+```
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+    ports:
+    - "8080:8080"
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - /app/node_modules
+      - .:/app
+```
+
+## BITBUCKET CI/CD VIA FTP
+
+•	Create a new ``bitbucket-pipelines.yml`` and add the following lines
+```
+image: node:14.17.0
+pipelines:
+ branches:
+   master:
+    - step:
+       name: Production
+       services:
+         - docker
+       caches:
+         - node
+       script:
+         - npm install
+         - npm run build
+         - pipe: atlassian/ftp-deploy:0.3.6
+           variables:
+             USER: $FTP_USER
+             PASSWORD: $FTP_PASSWORD
+             SERVER: $FTP_SERVER
+             REMOTE_PATH: $FTP_REMOTE_PATH
+             LOCAL_PATH: $FTP_LOCAL_PATH # Optional - React build directory.
+            #  DEBUG: 'true' # Optional
+            #  DELETE_FLAG: '<boolean>' # Optional. This is a option to delete old files before transferring new ones. Default: true.
+```
+
+•	To start run ``docker-composer up``
+
+<p>See&nbsp;<a href="https://support.atlassian.com/bitbucket-cloud/docs/get-started-with-bitbucket-pipelines/">Bitbucket Pipelines</a> for more details</p>
